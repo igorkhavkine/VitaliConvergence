@@ -167,7 +167,7 @@ protected theorem ae_eq (hf : UnifTight f p μ) (hfg : ∀ n, f n =ᵐ[μ] g n) 
     UnifTight g p μ := by
   intro ε hε
   obtain ⟨s, hms, hμs, hfε⟩ := hf hε
-  refine' ⟨s, hms, hμs, fun n /-s hs hμs-/ => (le_of_eq <| snorm_congr_ae _).trans (hfε n)⟩
+  refine' ⟨s, hms, hμs, fun n => (le_of_eq <| snorm_congr_ae _).trans (hfε n)⟩
   filter_upwards [hfg n] with x hx
   simp only [indicator, mem_compl_iff, ite_not, hx]
 
@@ -175,15 +175,15 @@ end UnifTight
 
 
 /-- Core lemma to be used in `MeasureTheory.Memℒp.snorm_indicator_compl_le`. -/
-theorem lintegral_indicator_compl_le /- (hp_one : 1 ≤ p) (hp_top : p ≠ ∞) -/
-    {g : α → ℝ≥0∞} (haesmg : AEStronglyMeasurable g μ) (hg : ∫⁻ a, g a ∂μ < ∞)
+theorem lintegral_indicator_compl_le
+    {g : α → ℝ≥0∞} (haemg : AEMeasurable g μ) (hg : ∫⁻ a, g a ∂μ < ∞)
     {ε : ℝ} (hε : 0 < ε) :
     ∃ (s : Set α) (_ : MeasurableSet s) (_ : μ s < ∞),
       ∫⁻ a, (sᶜ.indicator g) a ∂μ ≤ ENNReal.ofReal ε := by
-  -- come up with an a.e. equal strongly measurable replacement `f` for `g`
-  have hsmf := haesmg.stronglyMeasurable_mk
-  have hgf := haesmg.ae_eq_mk
-  set f := haesmg.mk
+  -- come up with an a.e. equal measurable replacement `f` for `g`
+  have hmf := haemg.measurable_mk
+  have hgf := haemg.ae_eq_mk
+  set f := haemg.mk
   have hf := calc
     _ = _ := (lintegral_congr_ae hgf).symm
     _ < ∞ := hg
@@ -194,11 +194,10 @@ theorem lintegral_indicator_compl_le /- (hp_one : 1 ≤ p) (hp_top : p ≠ ∞) 
   -- set up a sequence of vertical cutoffs of f by 1/(M+1)
   have hmeas_lt : ∀ M : ℕ, MeasurableSet { x | f x < 1 / (↑M + 1) } := by
     intro M
-    apply StronglyMeasurable.measurableSet_lt hsmf stronglyMeasurable_const
+    apply measurableSet_lt hmf measurable_const
   have hmeas : ∀ M : ℕ, Measurable ({ x | f x < 1 / (↑M + 1) }.indicator f) := by
     intro M
-    apply StronglyMeasurable.measurable
-    apply hsmf.indicator
+    apply hmf.indicator
     apply hmeas_lt M
   -- show that the sequence a.e. converges to 0
   have htendsto :
@@ -233,7 +232,7 @@ theorem lintegral_indicator_compl_le /- (hp_one : 1 ≤ p) (hp_top : p ≠ ∞) 
   rw [compl_compl] at hms
   have hμs := calc
     μ { x | 1 / (↑M + 1) ≤ f x }
-      ≤ _ := meas_ge_le_lintegral_div hsmf.aemeasurable (by norm_num) (by norm_num)
+      ≤ _ := meas_ge_le_lintegral_div hmf.aemeasurable (by norm_num) (by norm_num)
     _ < ∞ := by apply div_lt_top hf.ne (by norm_num)
   set s := { x | 1 / (↑M + 1) ≤ f x }
   -- fulfill the goal
@@ -258,16 +257,16 @@ theorem Memℒp.snorm_indicator_compl_le (hp_one : 1 ≤ p) (hp_top : p ≠ ∞)
   rw [snorm_eq_snorm' (by assumption) (by assumption)] at hsnf
   have hinpf := calc
     _ = _ := lintegral_rpow_nnnorm_eq_rpow_snorm' hrp_pos
-    _ < ∞ := (rpow_lt_top_iff_of_pos hrp_pos).mpr hsnf --by sorry
-  -- get a.e. strong measurability for the integrand
-  -- XXX: why does `AEStronglyMeasurable.ennnorm` only give the weaker AEMeasurable?
-  have haesmnf := (ENNReal.continuous_coe.comp_aestronglyMeasurable haesmf.nnnorm)
-  have haesmnpf := (@ENNReal.continuous_rpow_const p.toReal).comp_aestronglyMeasurable haesmnf
-  -- use core result for lintegral, the target estimate will be in `hsfε`
-  obtain ⟨s, hms, hμs, hsfε⟩ := lintegral_indicator_compl_le haesmnpf hinpf hεp
+    _ < ∞ := (rpow_lt_top_iff_of_pos hrp_pos).mpr hsnf
+  -- get a.e. measurability for the integrand
+  -- XXX: Why does `AEStronglyMeasurable.ennnorm` only give the weaker AEMeasurable?
+  --      It would make sense to me to use `haesmf.ennnorm.aemeasurable` below.
+  have haemnf := haesmf.ennnorm
+  have haemnpf := (@ENNReal.continuous_rpow_const p.toReal).aemeasurable.comp_aemeasurable haemnf
+  -- use core result for lintegral (needs only AEMeasurable), the target estimate will be in `hsfε`
+  obtain ⟨s, hms, hμs, hsfε⟩ := lintegral_indicator_compl_le haemnpf hinpf hεp
   use s, hms, hμs
   -- move indicator through function compositions, XXX: is this simp-able?
-  rw [← Function.comp_def (fun x : ℝ≥0∞ => x ^ p.toReal)] at hsfε
   rw [← Function.comp_def ENNReal.ofNNReal] at hsfε
   rw [← Function.comp_def nnnorm] at hsfε
   rw [sᶜ.indicator_comp_of_zero (@ENNReal.zero_rpow_of_pos p.toReal hrp_pos)] at hsfε
@@ -525,9 +524,9 @@ theorem tendsto_Lp_notFinite_of_tendstoInMeasure (hp : 1 ≤ p) (hp' : p ≠ ∞
     A sequence of functions `f` converges to `g` in Lp
     if and only if it is uniformly integrable, uniformly tight and to `g` in measure. -/
 theorem tendstoInMeasure_notFinite_iff_tendsto_Lp (hp : 1 ≤ p) (hp' : p ≠ ∞)
-    (hf : ∀ n, Memℒp (f n) p μ) (hg : Memℒp g p μ) :
-    /-(∀ᵐ x ∂μ, Tendsto (fun n => f n x) atTop (𝓝 (g x)))-/ TendstoInMeasure μ f atTop g ∧ UnifIntegrable f p μ ∧ UnifTight f p μ
-      ↔ Tendsto (fun n => snorm (f n - g) p μ) atTop (𝓝 0) := --by
+    (hf : ∀ n, Memℒp (f n) p μ) (hg : Memℒp g p μ)
+    : TendstoInMeasure μ f atTop g ∧ UnifIntegrable f p μ ∧ UnifTight f p μ
+      ↔ Tendsto (fun n => snorm (f n - g) p μ) atTop (𝓝 0) :=
   ⟨fun h => tendsto_Lp_notFinite_of_tendstoInMeasure hp hp' (fun n => (hf n).1) hg h.2.1 h.2.2 h.1,
     fun h =>
     ⟨tendstoInMeasure_of_tendsto_snorm (lt_of_lt_of_le zero_lt_one hp).ne.symm
