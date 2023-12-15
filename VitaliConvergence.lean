@@ -86,7 +86,7 @@ theorem UnifIntegrable.indicator {f : ι → α → β} {p : ℝ≥0∞} {μ : M
     : UnifIntegrable (fun i => E.indicator (f i)) p μ := by
   intro ε hε; obtain ⟨δ, hδ_pos, hε⟩ := hui hε
   use δ, hδ_pos; intro i s hs hμs
-  dsimp only -- eta reduction
+  dsimp only -- cosmetic eta reduction (but for some reason `eta_reduce` does nothing)
   calc
     ENNReal.ofReal ε ≥ _ := (hε i s hs hμs)
     _ ≥ _ := (snorm_indicator_le _)
@@ -104,7 +104,7 @@ theorem unifIntegrable_restrict {f : ι → α → β} {p : ℝ≥0∞} {μ : Me
     _ = (μ.restrict E) s := (μ.restrict_apply hs).symm
     _ ≤ ENNReal.ofReal δ := hμs
   have hEε := (hε i (E ∩ s) (hE.inter hs) hμEs)
-  dsimp only at hEε ⊢ -- eta reduction
+  eta_reduce -- cosmetic, goal is met without it
   calc
     _ = _ := (snorm_indicator_eq_snorm_restrict hE).symm
     _ = _ := by conv => { lhs; rw [indicator_indicator, ← E.inter_self, inter_assoc, ← indicator_indicator] }
@@ -187,11 +187,8 @@ theorem lintegral_indicator_compl_le
   have hf := calc
     _ = _ := (lintegral_congr_ae hgf).symm
     _ < ∞ := hg
-  conv => -- replace `g` by `f` in goal
-    enter [1, s, 1, hms, 1, hμs]
-    rw [lintegral_congr_ae hgf.indicator]
-    rfl
-  -- set up a sequence of vertical cutoffs of f by 1/(M+1)
+  simp (config := { zeta := false } /- prevent let expansion -/)
+    only [lintegral_congr_ae hgf.indicator]
   have hmeas_lt : ∀ M : ℕ, MeasurableSet { x | f x < 1 / (↑M + 1) } := by
     intro M
     apply measurableSet_lt hmf measurable_const
@@ -395,7 +392,7 @@ theorem unifTight_of_tendsto_Lp (hp : 1 ≤ p) (hp' : p ≠ ∞) (hf : ∀ n, Me
 
 
 /- Next we deal with the forward direction. The `Memℒp` and `TendstoInMeasure` hypotheses
-   are unwrapped and strengthened to by known lemmas to have in addition `StrongMeasurable`
+   are unwrapped and strengthened to by known lemmas to have in addition `StronglyMeasurable`
    and a.e. convergence. The bulk of the proof is done under these stronger hyptheses. -/
 
 theorem tendsto_Lp_notFinite_of_tendsto_ae_of_meas (hp : 1 ≤ p) (hp' : p ≠ ∞)
@@ -422,8 +419,10 @@ theorem tendsto_Lp_notFinite_of_tendsto_ae_of_meas (hp : 1 ≤ p) (hp' : p ≠ �
   have hgE' := Memℒp.restrict E hg'
   have huiE := unifIntegrable_restrict hui hmE
   have hfgE : (∀ᵐ x ∂(μ.restrict E), Tendsto (fun n => f n x) atTop (𝓝 (g x))) := ae_restrict_of_ae hfg
+  -- `tendsto_Lp_of_tendsto_ae_of_meas` needs to synthesize an argument `[IsFiniteMeasure (μ.restrict E)]`.
+  -- It is enough to have in the context a term of `Fact (μ E < ∞)`, which is our `ffmE` below,
+  -- which is automatically fed into `Restrict.isFiniteInstance`.
   have ffmE : Fact _ := { out := hfmE }
-  have ifmE := @Restrict.isFiniteMeasure _ _ _ μ ffmE  -- XXX: any way to do this without explitizing all arguments?
   have hInner := tendsto_Lp_of_tendsto_ae_of_meas (μ.restrict E) hp hp' hf hg hgE' huiE hfgE
   rw [ENNReal.tendsto_atTop_zero] at hInner
   -- get a sufficiently large N for given ε, and consider any n ≥ N
